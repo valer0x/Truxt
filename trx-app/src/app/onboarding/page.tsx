@@ -11,6 +11,9 @@ export default function OnboardingPage() {
   const [country, setCountry] = useState("");
   const [legalId, setLegalId] = useState("");
   const [loadIdStandard, setLoadIdStandard] = useState("");
+  const [customFields, setCustomFields] = useState<{ name: string; value: string }[]>([
+    { name: "", value: "" },
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -45,7 +48,16 @@ export default function OnboardingPage() {
           company_name: companyName,
           country,
           legal_id: legalId,
-          load_id_standard: role === "SHIPPER" ? loadIdStandard || null : null,
+          load_id_standard:
+            role === "SHIPPER"
+              ? loadIdStandard === "Custom"
+                ? JSON.stringify(
+                    customFields
+                      .filter((f) => f.name.trim())
+                      .reduce((acc, f) => ({ ...acc, [f.name.trim()]: f.value.trim() }), {})
+                  ) || null
+                : loadIdStandard || null
+              : null,
         }),
       });
 
@@ -186,14 +198,86 @@ export default function OnboardingPage() {
                   Load ID Standard{" "}
                   <span className="text-gray-400">(optional)</span>
                 </label>
-                <input
+                <select
                   id="loadIdStandard"
-                  type="text"
                   value={loadIdStandard}
-                  onChange={(e) => setLoadIdStandard(e.target.value)}
-                  placeholder="e.g. ISO 17712"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+                  onChange={(e) => {
+                    setLoadIdStandard(e.target.value);
+                    if (e.target.value !== "Custom")
+                      setCustomFields([{ name: "", value: "" }]);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                >
+                  <option value="">Select a standard...</option>
+                  <option value="ISO 17712">ISO 17712 — Mechanical seals for freight containers</option>
+                  <option value="ISO 6346">ISO 6346 — Container identification system</option>
+                  <option value="NMFC">NMFC — National Motor Freight Classification</option>
+                  <option value="Custom">Custom</option>
+                </select>
+
+                {loadIdStandard === "Custom" && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      Define your custom standard fields:
+                    </p>
+                    {customFields.map((field, idx) => (
+                      <div key={idx} className="flex gap-2 items-start">
+                        <input
+                          type="text"
+                          value={field.name}
+                          onChange={(e) => {
+                            const updated = [...customFields];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setCustomFields(updated);
+                          }}
+                          placeholder="Name"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={field.value}
+                          onChange={(e) => {
+                            const updated = [...customFields];
+                            updated[idx] = { ...updated[idx], value: e.target.value };
+                            setCustomFields(updated);
+                          }}
+                          placeholder="Value"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        {customFields.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCustomFields(customFields.filter((_, i) => i !== idx))
+                            }
+                            className="px-2 py-2 text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                            title="Remove field"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCustomFields([...customFields, { name: "", value: "" }])
+                      }
+                      className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add field
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
