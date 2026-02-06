@@ -1,23 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/ui/components/session-context";
+import Combobox from "@/ui/components/combobox";
+import { COUNTRIES, getCitiesForCountry } from "@/lib/country-city-data";
 
 export default function OnboardingPage() {
   const [wallet, setWallet] = useState("");
   const [role, setRole] = useState<"SHIPPER" | "CARRIER">("SHIPPER");
   const [companyName, setCompanyName] = useState("");
   const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
   const [legalId, setLegalId] = useState("");
   const [loadIdStandard, setLoadIdStandard] = useState("");
-  const [customFields, setCustomFields] = useState<{ name: string; value: string }[]>([
-    { name: "", value: "" },
-  ]);
+  const [customFieldNames, setCustomFieldNames] = useState<string[]>([""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
   const { setSession } = useSession();
+
+  const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), []);
+  const cityOptions = useMemo(() => getCitiesForCountry(country), [country]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("trx_onboard_wallet");
@@ -32,7 +36,7 @@ export default function OnboardingPage() {
     e.preventDefault();
     setError("");
 
-    if (!companyName || !country || !legalId) {
+    if (!companyName || !country || !city || !legalId) {
       setError("All fields are required");
       return;
     }
@@ -47,15 +51,15 @@ export default function OnboardingPage() {
           role,
           company_name: companyName,
           country,
+          city,
           legal_id: legalId,
           load_id_standard:
             role === "SHIPPER"
               ? loadIdStandard === "Custom"
-                ? JSON.stringify(
-                    customFields
-                      .filter((f) => f.name.trim())
-                      .reduce((acc, f) => ({ ...acc, [f.name.trim()]: f.value.trim() }), {})
-                  ) || null
+                ? JSON.stringify({
+                    _type: "custom",
+                    fields: customFieldNames.filter((n) => n.trim()),
+                  }) || null
                 : loadIdStandard || null
               : null,
         }),
@@ -74,6 +78,9 @@ export default function OnboardingPage() {
         did: data.did,
         role: data.role,
         company_name: data.company_name,
+        city: data.city,
+        country: data.country,
+        load_id_standard: data.load_id_standard,
       });
       router.push("/dashboard");
     } catch {
@@ -88,7 +95,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            TRX
+            Truxt
           </h1>
           <p className="mt-2 text-sm text-gray-500">Complete your registration</p>
         </div>
@@ -152,22 +159,41 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {/* Country */}
-            <div>
-              <label
-                htmlFor="country"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Country
-              </label>
-              <input
-                id="country"
-                type="text"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                placeholder="US"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+            {/* Country & City */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="country"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Country
+                </label>
+                <Combobox
+                  id="country"
+                  value={country}
+                  onChange={(val) => {
+                    setCountry(val);
+                    setCity("");
+                  }}
+                  options={countryNames}
+                  placeholder="Select or type country..."
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="city"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  City
+                </label>
+                <Combobox
+                  id="city"
+                  value={city}
+                  onChange={setCity}
+                  options={cityOptions}
+                  placeholder="Select or type city..."
+                />
+              </div>
             </div>
 
             {/* Legal ID */}
@@ -204,7 +230,7 @@ export default function OnboardingPage() {
                   onChange={(e) => {
                     setLoadIdStandard(e.target.value);
                     if (e.target.value !== "Custom")
-                      setCustomFields([{ name: "", value: "" }]);
+                      setCustomFieldNames([""]);
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
                 >
@@ -218,37 +244,26 @@ export default function OnboardingPage() {
                 {loadIdStandard === "Custom" && (
                   <div className="mt-3 space-y-2">
                     <p className="text-xs text-gray-500">
-                      Define your custom standard fields:
+                      Define the field names for your standard. Values will be filled when creating a load.
                     </p>
-                    {customFields.map((field, idx) => (
+                    {customFieldNames.map((name, idx) => (
                       <div key={idx} className="flex gap-2 items-start">
                         <input
                           type="text"
-                          value={field.name}
+                          value={name}
                           onChange={(e) => {
-                            const updated = [...customFields];
-                            updated[idx] = { ...updated[idx], name: e.target.value };
-                            setCustomFields(updated);
+                            const updated = [...customFieldNames];
+                            updated[idx] = e.target.value;
+                            setCustomFieldNames(updated);
                           }}
-                          placeholder="Name"
+                          placeholder={`Field ${idx + 1} name`}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
-                        <input
-                          type="text"
-                          value={field.value}
-                          onChange={(e) => {
-                            const updated = [...customFields];
-                            updated[idx] = { ...updated[idx], value: e.target.value };
-                            setCustomFields(updated);
-                          }}
-                          placeholder="Value"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                        />
-                        {customFields.length > 1 && (
+                        {customFieldNames.length > 1 && (
                           <button
                             type="button"
                             onClick={() =>
-                              setCustomFields(customFields.filter((_, i) => i !== idx))
+                              setCustomFieldNames(customFieldNames.filter((_, i) => i !== idx))
                             }
                             className="px-2 py-2 text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
                             title="Remove field"
@@ -267,7 +282,7 @@ export default function OnboardingPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setCustomFields([...customFields, { name: "", value: "" }])
+                        setCustomFieldNames([...customFieldNames, ""])
                       }
                       className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors cursor-pointer"
                     >

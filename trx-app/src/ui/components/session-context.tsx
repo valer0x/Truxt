@@ -13,6 +13,9 @@ interface Session {
   did: string;
   role: "SHIPPER" | "CARRIER";
   company_name?: string;
+  city?: string;
+  country?: string;
+  load_id_standard?: string | null;
 }
 
 interface SessionContextType {

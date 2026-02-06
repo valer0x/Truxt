@@ -5,11 +5,11 @@ import { Role } from "@/domain/types";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { wallet_address, role, company_name, country, legal_id, load_id_standard } = body;
+    const { wallet_address, role, company_name, country, city, legal_id, load_id_standard } = body;
 
-    if (!wallet_address || !role || !company_name || !country || !legal_id) {
+    if (!wallet_address || !role || !company_name || !country || !city || !legal_id) {
       return NextResponse.json(
-        { error: "Missing required fields: wallet_address, role, company_name, country, legal_id" },
+        { error: "Missing required fields: wallet_address, role, company_name, country, city, legal_id" },
         { status: 400 }
       );
     }
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       role: role as Role,
       company_name,
       country,
+      city,
       legal_id,
       load_id_standard: load_id_standard ?? null,
     });

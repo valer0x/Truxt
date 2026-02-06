@@ -131,11 +131,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ orders: verified });
     }
 
-    // CARRIER: pending loads + my booked loads
+    // CARRIER: pending loads + my booked loads + my done loads
     const pendingOrders = getOrdersByState("PENDING");
-    const myBookedOrders = getOrdersByCarrier(actorDid).filter(
-      (o) => o.state === "BOOKED"
-    );
+    const myCarrierOrders = getOrdersByCarrier(actorDid);
+    const myBookedOrders = myCarrierOrders.filter((o) => o.state === "BOOKED");
+    const myDoneOrders = myCarrierOrders.filter((o) => o.state === "DONE");
 
     const verifyAll = async (list: OrderToken[]) =>
       Promise.all(
@@ -150,12 +150,22 @@ export async function GET(req: NextRequest) {
         })
       );
 
-    const [pending, myBooked] = await Promise.all([
+    const [pending, myBooked, myDone] = await Promise.all([
       verifyAll(pendingOrders),
       verifyAll(myBookedOrders),
+      verifyAll(myDoneOrders),
     ]);
 
-    return NextResponse.json({ pending, my_booked: myBooked });
+    return NextResponse.json({
+      pending,
+      my_booked: myBooked,
+      my_done: myDone,
+      carrier_location: {
+        city: profile.city,
+        country: profile.country,
+        company_name: profile.company_name,
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

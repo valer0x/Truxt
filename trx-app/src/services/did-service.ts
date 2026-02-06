@@ -47,6 +47,7 @@ export function registerProfile(data: {
   role: Role;
   company_name: string;
   country: string;
+  city: string;
   legal_id: string;
   load_id_standard?: string | null;
 }): DIDProfile {
@@ -61,6 +62,7 @@ export function registerProfile(data: {
     role: data.role,
     company_name: data.company_name,
     country: data.country,
+    city: data.city,
     legal_id_hash: hashLegalId(data.legal_id),
     load_id_standard: data.load_id_standard ?? null,
   };

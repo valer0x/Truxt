@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { StatusBadge, VerifiedBadge } from "./status-badge";
 import ProofModal from "./proof-modal";
+
+const CarrierMap = lazy(() => import("./carrier-map"));
 
 interface OrderRow {
   order_id: string;
@@ -33,6 +35,12 @@ interface OrderRow {
 export default function CarrierDashboard({ did }: { did: string }) {
   const [pending, setPending] = useState<OrderRow[]>([]);
   const [myBooked, setMyBooked] = useState<OrderRow[]>([]);
+  const [myDone, setMyDone] = useState<OrderRow[]>([]);
+  const [carrierLocation, setCarrierLocation] = useState<{
+    city: string;
+    country: string;
+    company_name: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -44,12 +52,24 @@ export default function CarrierDashboard({ did }: { did: string }) {
       const data = await res.json();
       setPending(data.pending || []);
       setMyBooked(data.my_booked || []);
+      setMyDone(data.my_done || []);
+      setCarrierLocation(data.carrier_location || null);
     } catch {
       // silently fail
     } finally {
       setLoading(false);
     }
   }, [did]);
+
+  const mapLoads = useMemo(() => {
+    const all = [...pending, ...myBooked, ...myDone];
+    return all.map((o) => ({
+      order_id: o.order_id,
+      from: o.payload_offledger.from,
+      to: o.payload_offledger.to,
+      state: o.verified_state || o.state,
+    }));
+  }, [pending, myBooked, myDone]);
 
   useEffect(() => {
     fetchOrders();
@@ -107,6 +127,19 @@ export default function CarrierDashboard({ did }: { did: string }) {
 
   return (
     <div className="space-y-8">
+      {/* Map */}
+      {(pending.length > 0 || myBooked.length > 0 || myDone.length > 0) && (
+        <Suspense
+          fallback={
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-[400px] flex items-center justify-center text-gray-400">
+              Loading map...
+            </div>
+          }
+        >
+          <CarrierMap carrierLocation={carrierLocation} loads={mapLoads} />
+        </Suspense>
+      )}
+
       {/* Available Loads */}
       <div>
         <div className="mb-4">
@@ -297,6 +330,65 @@ export default function CarrierDashboard({ did }: { did: string }) {
           )}
         </div>
       </div>
+      {/* Completed Loads */}
+      {myDone.length > 0 && (
+        <div>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Completed Loads
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Loads you have delivered successfully.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Load ID</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Shipper</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Lane</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Verified</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Proof</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {myDone.map((order) => (
+                    <tr key={order.order_id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-800">
+                        {order.order_id}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500 font-mono">
+                        {order.issuer_did.slice(0, 20)}...
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {order.payload_offledger.from} →{" "}
+                        {order.payload_offledger.to}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {order.payload_offledger.pickup_date}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge state={order.verified_state} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <VerifiedBadge verified={order.verified} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <ProofModal proof={order.verified_proof} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

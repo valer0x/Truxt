@@ -31,7 +31,7 @@ interface OrderRow {
   };
 }
 
-export default function ShipperDashboard({ did }: { did: string }) {
+export default function ShipperDashboard({ did, loadIdStandard }: { did: string; loadIdStandard: string | null }) {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -79,6 +79,7 @@ export default function ShipperDashboard({ did }: { did: string }) {
         onClose={() => setShowCreate(false)}
         onCreated={fetchOrders}
         actorDid={did}
+        loadIdStandard={loadIdStandard}
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

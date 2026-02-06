@@ -10,6 +10,7 @@ export interface DIDProfile {
   role: Role;
   company_name: string;
   country: string;
+  city: string;
   legal_id_hash: string;
   load_id_standard: string | null; // shipper only
 }

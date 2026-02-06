@@ -52,7 +52,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            TRX
+            Truxt
           </h1>
           <p className="mt-2 text-sm text-gray-500">
             Anti-Phantom Load System on IOTA

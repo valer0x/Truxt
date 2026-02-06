@@ -22,6 +22,7 @@ async function seed() {
     role: "SHIPPER",
     company_name: "Global Freight Co",
     country: "US",
+    city: "Chicago",
     legal_id: "MC-100001",
     load_id_standard: "ISO 17712",
   });
@@ -33,6 +34,7 @@ async function seed() {
     role: "CARRIER",
     company_name: "Swift Transport LLC",
     country: "US",
+    city: "Dallas",
     legal_id: "MC-200001",
   });
   console.log("Carrier registered:", carrier.did);

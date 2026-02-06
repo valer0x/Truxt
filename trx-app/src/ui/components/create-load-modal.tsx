@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import Combobox from "./combobox";
+import { COUNTRIES, getCitiesForCountry } from "@/lib/country-city-data";
 
 interface CreateLoadModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
   actorDid: string;
+  loadIdStandard: string | null;
 }
 
 export default function CreateLoadModal({
@@ -14,15 +17,37 @@ export default function CreateLoadModal({
   onClose,
   onCreated,
   actorDid,
+  loadIdStandard,
 }: CreateLoadModalProps) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [fromCountry, setFromCountry] = useState("");
+  const [fromCity, setFromCity] = useState("");
+  const [toCountry, setToCountry] = useState("");
+  const [toCity, setToCity] = useState("");
   const [pickupDate, setPickupDate] = useState("");
   const [pickupWindow, setPickupWindow] = useState("");
   const [weight, setWeight] = useState("");
   const [reference, setReference] = useState("");
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Parse custom field names from load_id_standard
+  const customFieldNames = useMemo(() => {
+    if (!loadIdStandard) return [];
+    try {
+      const parsed = JSON.parse(loadIdStandard);
+      if (parsed._type === "custom" && Array.isArray(parsed.fields)) {
+        return parsed.fields as string[];
+      }
+    } catch {
+      // not a custom standard
+    }
+    return [];
+  }, [loadIdStandard]);
+
+  const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), []);
+  const fromCityOptions = useMemo(() => getCitiesForCountry(fromCountry), [fromCountry]);
+  const toCityOptions = useMemo(() => getCitiesForCountry(toCountry), [toCountry]);
 
   if (!open) return null;
 
@@ -30,27 +55,45 @@ export default function CreateLoadModal({
     e.preventDefault();
     setError("");
 
-    if (!from || !to || !pickupDate || !weight) {
-      setError("From, To, Date, and Weight are required");
+    if (!fromCity || !fromCountry || !toCity || !toCountry || !pickupDate || !weight) {
+      setError("Origin, Destination, Date, and Weight are required");
       return;
     }
 
+    const from = `${fromCity}, ${fromCountry}`;
+    const to = `${toCity}, ${toCountry}`;
+
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        from,
+        to,
+        pickup_date: pickupDate,
+        pickup_window: pickupWindow,
+        weight: Number(weight),
+        reference,
+      };
+
+      // Include custom standard values if any
+      if (customFieldNames.length > 0) {
+        const filled: Record<string, string> = {};
+        for (const name of customFieldNames) {
+          if (customValues[name]?.trim()) {
+            filled[name] = customValues[name].trim();
+          }
+        }
+        if (Object.keys(filled).length > 0) {
+          body.custom_standard = filled;
+        }
+      }
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-actor-did": actorDid,
         },
-        body: JSON.stringify({
-          from,
-          to,
-          pickup_date: pickupDate,
-          pickup_window: pickupWindow,
-          weight: Number(weight),
-          reference,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -60,12 +103,15 @@ export default function CreateLoadModal({
       }
 
       // Reset form
-      setFrom("");
-      setTo("");
+      setFromCountry("");
+      setFromCity("");
+      setToCountry("");
+      setToCity("");
       setPickupDate("");
       setPickupWindow("");
       setWeight("");
       setReference("");
+      setCustomValues({});
       onCreated();
       onClose();
     } catch {
@@ -78,7 +124,7 @@ export default function CreateLoadModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
+      <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
             Publish New Load
@@ -98,30 +144,53 @@ export default function CreateLoadModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                From
-              </label>
-              <input
-                type="text"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                placeholder="Chicago, IL"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+          {/* Origin */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Origin</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Country</label>
+                <Combobox
+                  value={fromCountry}
+                  onChange={(val) => { setFromCountry(val); setFromCity(""); }}
+                  options={countryNames}
+                  placeholder="Select country..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">City</label>
+                <Combobox
+                  value={fromCity}
+                  onChange={setFromCity}
+                  options={fromCityOptions}
+                  placeholder="Select city..."
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                To
-              </label>
-              <input
-                type="text"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                placeholder="Dallas, TX"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+          </div>
+
+          {/* Destination */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Destination</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Country</label>
+                <Combobox
+                  value={toCountry}
+                  onChange={(val) => { setToCountry(val); setToCity(""); }}
+                  options={countryNames}
+                  placeholder="Select country..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">City</label>
+                <Combobox
+                  value={toCity}
+                  onChange={setToCity}
+                  options={toCityOptions}
+                  placeholder="Select city..."
+                />
+              </div>
             </div>
           </div>
 
@@ -177,6 +246,36 @@ export default function CreateLoadModal({
               />
             </div>
           </div>
+
+          {/* Custom standard fields */}
+          {customFieldNames.length > 0 && (
+            <div className="border-t border-gray-200 pt-4">
+              <p className="text-sm font-medium text-gray-700 mb-3">
+                Custom Standard Fields
+              </p>
+              <div className="space-y-3">
+                {customFieldNames.map((fieldName) => (
+                  <div key={fieldName}>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      {fieldName}
+                    </label>
+                    <input
+                      type="text"
+                      value={customValues[fieldName] ?? ""}
+                      onChange={(e) =>
+                        setCustomValues((prev) => ({
+                          ...prev,
+                          [fieldName]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Enter ${fieldName}...`}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
