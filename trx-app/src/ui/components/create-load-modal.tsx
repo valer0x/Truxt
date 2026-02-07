@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import Combobox from "./combobox";
-import { COUNTRIES, getCitiesForCountry } from "@/lib/country-city-data";
+import { useState } from "react";
 
 interface CreateLoadModalProps {
   open: boolean;
@@ -17,37 +15,13 @@ export default function CreateLoadModal({
   onClose,
   onCreated,
   actorDid,
-  loadIdStandard,
 }: CreateLoadModalProps) {
-  const [fromCountry, setFromCountry] = useState("");
-  const [fromCity, setFromCity] = useState("");
-  const [toCountry, setToCountry] = useState("");
-  const [toCity, setToCity] = useState("");
-  const [pickupDate, setPickupDate] = useState("");
-  const [pickupWindow, setPickupWindow] = useState("");
-  const [weight, setWeight] = useState("");
-  const [reference, setReference] = useState("");
-  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+  const [processType, setProcessType] = useState<string>("Tendering");
+  const [shipmentId, setShipmentId] = useState("");
+  const [serviceClass, setServiceClass] = useState<string>("FTL");
+  const [cmrReference, setCmrReference] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Parse custom field names from load_id_standard
-  const customFieldNames = useMemo(() => {
-    if (!loadIdStandard) return [];
-    try {
-      const parsed = JSON.parse(loadIdStandard);
-      if (parsed._type === "custom" && Array.isArray(parsed.fields)) {
-        return parsed.fields as string[];
-      }
-    } catch {
-      // not a custom standard
-    }
-    return [];
-  }, [loadIdStandard]);
-
-  const countryNames = useMemo(() => COUNTRIES.map((c) => c.name), []);
-  const fromCityOptions = useMemo(() => getCitiesForCountry(fromCountry), [fromCountry]);
-  const toCityOptions = useMemo(() => getCitiesForCountry(toCountry), [toCountry]);
 
   if (!open) return null;
 
@@ -55,37 +29,21 @@ export default function CreateLoadModal({
     e.preventDefault();
     setError("");
 
-    if (!fromCity || !fromCountry || !toCity || !toCountry || !pickupDate || !weight) {
-      setError("Origin, Destination, Date, and Weight are required");
-      return;
-    }
-
-    const from = `${fromCity}, ${fromCountry}`;
-    const to = `${toCity}, ${toCountry}`;
-
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        from,
-        to,
-        pickup_date: pickupDate,
-        pickup_window: pickupWindow,
-        weight: Number(weight),
-        reference,
+        from: "-",
+        to: "-",
+        pickup_date: new Date().toISOString().slice(0, 10),
+        pickup_window: "",
+        weight: 0,
+        reference: "",
+        process_type: processType,
+        load_type: serviceClass,
+        shipment_id: shipmentId,
+        service_class: serviceClass,
+        cmr_reference: cmrReference,
       };
-
-      // Include custom standard values if any
-      if (customFieldNames.length > 0) {
-        const filled: Record<string, string> = {};
-        for (const name of customFieldNames) {
-          if (customValues[name]?.trim()) {
-            filled[name] = customValues[name].trim();
-          }
-        }
-        if (Object.keys(filled).length > 0) {
-          body.custom_standard = filled;
-        }
-      }
 
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -103,15 +61,10 @@ export default function CreateLoadModal({
       }
 
       // Reset form
-      setFromCountry("");
-      setFromCity("");
-      setToCountry("");
-      setToCity("");
-      setPickupDate("");
-      setPickupWindow("");
-      setWeight("");
-      setReference("");
-      setCustomValues({});
+      setProcessType("Tendering");
+      setShipmentId("");
+      setServiceClass("FTL");
+      setCmrReference("");
       onCreated();
       onClose();
     } catch {
@@ -144,138 +97,80 @@ export default function CreateLoadModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Origin */}
+          {/* Process Type */}
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Origin</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Country</label>
-                <Combobox
-                  value={fromCountry}
-                  onChange={(val) => { setFromCountry(val); setFromCity(""); }}
-                  options={countryNames}
-                  placeholder="Select country..."
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">City</label>
-                <Combobox
-                  value={fromCity}
-                  onChange={setFromCity}
-                  options={fromCityOptions}
-                  placeholder="Select city..."
-                />
-              </div>
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Process Type
+            </label>
+            <select
+              value={processType}
+              onChange={(e) => setProcessType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+            >
+              <option value="Tendering">Tendering</option>
+              <option value="Auction">Auction</option>
+              <option value="Direct Book">Direct Book</option>
+            </select>
           </div>
 
-          {/* Destination */}
+          {/* Road Freight Reference */}
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Destination</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Country</label>
-                <Combobox
-                  value={toCountry}
-                  onChange={(val) => { setToCountry(val); setToCity(""); }}
-                  options={countryNames}
-                  placeholder="Select country..."
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Shipment / Consignment ID
+            </label>
+            <input
+              type="text"
+              value={shipmentId}
+              onChange={(e) => setShipmentId(e.target.value)}
+              placeholder="e.g. SHP-2026-00123"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+
+          {/* Service Class */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Service Class
+            </label>
+            <div className="flex gap-4 mt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="serviceClass"
+                  value="FTL"
+                  checked={serviceClass === "FTL"}
+                  onChange={() => setServiceClass("FTL")}
+                  className="text-indigo-600"
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">City</label>
-                <Combobox
-                  value={toCity}
-                  onChange={setToCity}
-                  options={toCityOptions}
-                  placeholder="Select city..."
+                <span className="text-sm">FTL</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="serviceClass"
+                  value="LTL"
+                  checked={serviceClass === "LTL"}
+                  onChange={() => setServiceClass("LTL")}
+                  className="text-indigo-600"
                 />
-              </div>
+                <span className="text-sm">LTL</span>
+              </label>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pickup Date
-              </label>
-              <input
-                type="date"
-                value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pickup Window
-              </label>
-              <input
-                type="text"
-                value={pickupWindow}
-                onChange={(e) => setPickupWindow(e.target.value)}
-                placeholder="8:00 AM - 12:00 PM"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+          {/* CMR Reference */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              CMR Reference <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={cmrReference}
+              onChange={(e) => setCmrReference(e.target.value)}
+              placeholder="e.g. CMR-IT-2026-001"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Weight (lbs)
-              </label>
-              <input
-                type="number"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="42000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reference
-              </label>
-              <input
-                type="text"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="PO-12345"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Custom standard fields */}
-          {customFieldNames.length > 0 && (
-            <div className="border-t border-gray-200 pt-4">
-              <p className="text-sm font-medium text-gray-700 mb-3">
-                Custom Standard Fields
-              </p>
-              <div className="space-y-3">
-                {customFieldNames.map((fieldName) => (
-                  <div key={fieldName}>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      {fieldName}
-                    </label>
-                    <input
-                      type="text"
-                      value={customValues[fieldName] ?? ""}
-                      onChange={(e) =>
-                        setCustomValues((prev) => ({
-                          ...prev,
-                          [fieldName]: e.target.value,
-                        }))
-                      }
-                      placeholder={`Enter ${fieldName}...`}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

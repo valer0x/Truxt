@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { StatusBadge, VerifiedBadge } from "./status-badge";
 import ProofModal from "./proof-modal";
-
-const CarrierMap = lazy(() => import("./carrier-map"));
 
 interface OrderRow {
   order_id: string;
@@ -36,11 +34,6 @@ export default function CarrierDashboard({ did }: { did: string }) {
   const [pending, setPending] = useState<OrderRow[]>([]);
   const [myBooked, setMyBooked] = useState<OrderRow[]>([]);
   const [myDone, setMyDone] = useState<OrderRow[]>([]);
-  const [carrierLocation, setCarrierLocation] = useState<{
-    city: string;
-    country: string;
-    company_name: string;
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -53,23 +46,12 @@ export default function CarrierDashboard({ did }: { did: string }) {
       setPending(data.pending || []);
       setMyBooked(data.my_booked || []);
       setMyDone(data.my_done || []);
-      setCarrierLocation(data.carrier_location || null);
     } catch {
       // silently fail
     } finally {
       setLoading(false);
     }
   }, [did]);
-
-  const mapLoads = useMemo(() => {
-    const all = [...pending, ...myBooked, ...myDone];
-    return all.map((o) => ({
-      order_id: o.order_id,
-      from: o.payload_offledger.from,
-      to: o.payload_offledger.to,
-      state: o.verified_state || o.state,
-    }));
-  }, [pending, myBooked, myDone]);
 
   useEffect(() => {
     fetchOrders();
@@ -127,19 +109,6 @@ export default function CarrierDashboard({ did }: { did: string }) {
 
   return (
     <div className="space-y-8">
-      {/* Map */}
-      {(pending.length > 0 || myBooked.length > 0 || myDone.length > 0) && (
-        <Suspense
-          fallback={
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-[400px] flex items-center justify-center text-gray-400">
-              Loading map...
-            </div>
-          }
-        >
-          <CarrierMap carrierLocation={carrierLocation} loads={mapLoads} />
-        </Suspense>
-      )}
-
       {/* Available Loads */}
       <div>
         <div className="mb-4">

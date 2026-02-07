@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { lookupByDid } from "@/services/did-service";
 import { getNetworkAdapter } from "@/services/mock-iota-adapter";
 import { canActorCreate } from "@/domain/state-machine";
-import { OrderToken, OrderPayload } from "@/domain/types";
+import { OrderToken, OrderPayload, ProcessType, LoadType } from "@/domain/types";
 import { computeFingerprint } from "@/lib/fingerprint";
 import {
   saveOrder,
@@ -42,21 +43,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { from, to, pickup_date, pickup_window, weight, reference } = body;
-    if (!from || !to || !pickup_date || !weight) {
-      return NextResponse.json(
-        { error: "Missing required fields: from, to, pickup_date, weight" },
-        { status: 400 }
-      );
-    }
+    const { from, to, pickup_date, pickup_window, weight, reference, process_type, load_type, equipment_requirements } = body;
+
+    // Hash equipment requirements JSON off-ledger
+    const eqReq = equipment_requirements ?? {};
+    const eqHash = createHash("sha256")
+      .update(JSON.stringify(eqReq))
+      .digest("hex");
 
     const payload: OrderPayload = {
-      from,
-      to,
-      pickup_date,
+      from: from ?? "-",
+      to: to ?? "-",
+      pickup_date: pickup_date ?? new Date().toISOString().slice(0, 10),
       pickup_window: pickup_window ?? "",
-      weight: Number(weight),
+      weight: Number(weight) || 0,
       reference: reference ?? "",
+      process_type: (process_type as ProcessType) ?? "Tendering",
+      load_type: (load_type as LoadType) ?? "FTL",
+      equipment_requirements_hash: eqHash,
     };
 
     const orderId = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;

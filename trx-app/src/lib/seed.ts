@@ -47,6 +47,9 @@ async function seed() {
     pickup_window: "8:00 AM - 12:00 PM",
     weight: 42000,
     reference: "PO-SEED-001",
+    process_type: "Tendering",
+    load_type: "FTL",
+    equipment_requirements_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   };
 
   const orderId = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;

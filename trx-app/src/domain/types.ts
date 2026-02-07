@@ -15,6 +15,16 @@ export interface DIDProfile {
   load_id_standard: string | null; // shipper only
 }
 
+export type ProcessType = "Tendering" | "Auction" | "Direct Book";
+export type LoadType = "FTL" | "LTL";
+
+export interface EquipmentRequirements {
+  sponda: boolean;
+  adr: boolean;
+  temp_range: string;
+  security_level: string;
+}
+
 export interface OrderPayload {
   from: string;
   to: string;
@@ -22,6 +32,9 @@ export interface OrderPayload {
   pickup_window: string;
   weight: number;
   reference: string;
+  process_type: ProcessType;
+  load_type: LoadType;
+  equipment_requirements_hash: string;
 }
 
 export interface OrderToken {
