@@ -1,41 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "allowJs": true,
-    "skipLibCheck": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "sourceMap": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "esModuleInterop": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node", "vitest/globals"],
+    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["src/*"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts", "tailwind.config.ts", "vitest.config.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,0 +1,11 @@
+[package]
+name = "trx_load_registry"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+# TODO: lock this dependency to the exact framework revision used in your target network.
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "develop" }
+
+[addresses]
+trx_load_registry = "0x0"

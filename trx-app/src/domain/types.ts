@@ -1,6 +1,4 @@
-// ── Core domain types ──
-
-export type Role = "SHIPPER" | "CARRIER";
+﻿export type Role = "SHIPPER" | "CARRIER";
 
 export type OrderState = "PENDING" | "BOOKED" | "DONE" | "CANCELLED" | "EXPIRED";
 
@@ -12,18 +10,11 @@ export interface DIDProfile {
   country: string;
   city: string;
   legal_id_hash: string;
-  load_id_standard: string | null; // shipper only
+  load_id_standard: string | null;
 }
 
 export type ProcessType = "Tendering" | "Auction" | "Direct Book";
 export type LoadType = "FTL" | "LTL";
-
-export interface EquipmentRequirements {
-  sponda: boolean;
-  adr: boolean;
-  temp_range: string;
-  security_level: string;
-}
 
 export interface OrderPayload {
   from: string;
@@ -72,4 +63,40 @@ export interface VerificationResult {
 export interface Actor {
   role: Role;
   did: string;
+}
+
+export interface VerifiedOrderRow extends OrderToken {
+  verified_state: OrderState;
+  verified: boolean;
+  verified_proof: NetworkProof;
+}
+
+export type BlockchainAction = "CREATE" | "STATE_UPDATE";
+
+export interface BlockchainTransaction {
+  tx_id: string;
+  block_id: string;
+  prev_tx_id: string | null;
+  order_id: string;
+  action: BlockchainAction;
+  state: OrderState;
+  issuer_did: string;
+  carrier_did: string | null;
+  fingerprint: string | null;
+  payload_hash: string | null;
+  order_snapshot_hash: string;
+  timestamp: string;
+}
+
+export type NetworkEventType = "LOAD_CREATED" | "LOAD_STATE_CHANGED";
+
+export interface NetworkEventPayload {
+  event_id: string;
+  type: NetworkEventType;
+  order_id: string;
+  tx_id: string;
+  state: OrderState;
+  issuer_did: string;
+  carrier_did: string | null;
+  timestamp: string;
 }
