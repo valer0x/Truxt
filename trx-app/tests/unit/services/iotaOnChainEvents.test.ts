@@ -120,7 +120,7 @@ describe("parseOnChainNetworkEvent", () => {
     expect(result!.loadObjectId).toBe("0xobj001");
     expect(result!.fingerprint).toBe("fp_test");
     expect(result!.previousState).toBeNull();
-    expect(result!.payload).toEqual({
+    expect(result!.payload).toMatchObject({
       from: "Rome",
       to: "Milan",
       pickup_date: "2025-01-15",

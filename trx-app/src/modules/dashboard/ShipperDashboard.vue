@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="space-y-5">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
@@ -44,6 +44,13 @@
       </p>
     </AppCard>
 
+    <AppCard
+      v-if="!onChainReady.isReady.value"
+      class="border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20"
+    >
+      <p class="text-sm text-amber-700 dark:text-amber-200">{{ onChainReady.readinessMessage.value }}</p>
+    </AppCard>
+
     <CreateLoadComposer
       v-if="showComposer"
       :actor-did="did"
@@ -86,6 +93,33 @@
           <VerifiedBadge :verified="order.verified" />
           <ProofModal :proof="order.verified_proof" />
         </div>
+
+        <!-- Shipper actions: cancel (PENDING or BOOKED), expire (PENDING only) -->
+        <div
+          v-if="canCancel(order) || canExpire(order)"
+          class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-700"
+        >
+          <BaseButton
+            v-if="canExpire(order)"
+            variant="secondary"
+            size="sm"
+            :disabled="!onChainReady.isReady.value || actionLoading === order.order_id"
+            :loading="actionLoading === order.order_id"
+            @click="handleExpire(order.order_id)"
+          >
+            Expire
+          </BaseButton>
+          <BaseButton
+            v-if="canCancel(order)"
+            variant="danger"
+            size="sm"
+            :disabled="!onChainReady.isReady.value || actionLoading === order.order_id"
+            :loading="actionLoading === order.order_id"
+            @click="handleCancel(order.order_id)"
+          >
+            Cancel
+          </BaseButton>
+        </div>
       </AppCard>
     </div>
   </section>
@@ -94,8 +128,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { VerifiedOrderRow } from "@/domain/types";
-import { TrxApiError, listOrders } from "@/services/trx/trxApi";
+import { TrxApiError, cancelOrder, expireOrder, listOrders } from "@/services/trx/trxApi";
 import { useLiveOrderSync } from "@/shared/composables/useLiveOrderSync";
+import { useOnChainWriteReadiness } from "@/shared/composables/useOnChainWriteReadiness";
 import AppCard from "@/shared/components/ui/AppCard.vue";
 import BaseButton from "@/shared/components/ui/BaseButton.vue";
 import StatusBadge from "@/shared/components/ui/StatusBadge.vue";
@@ -113,6 +148,9 @@ const loading = ref(true);
 const error = ref("");
 const showComposer = ref(false);
 const lastSyncAt = ref("");
+const actionLoading = ref<string | null>(null);
+
+const onChainReady = useOnChainWriteReadiness();
 
 const pendingCount = computed(() => orders.value.filter((order) => order.verified_state === "PENDING").length);
 const bookedCount = computed(() => orders.value.filter((order) => order.verified_state === "BOOKED").length);
@@ -145,6 +183,19 @@ const liveDotClass = computed(() => {
 
   return "bg-sky-500";
 });
+
+/** Shipper can cancel from PENDING or BOOKED (WP Section IV: PENDING→CANCELLED, BOOKED→CANCELLED). */
+function canCancel(order: VerifiedOrderRow): boolean {
+  return (
+    order.issuer_did === props.did &&
+    (order.verified_state === "PENDING" || order.verified_state === "BOOKED")
+  );
+}
+
+/** Shipper can expire only from PENDING (WP Section IV: PENDING→EXPIRED). */
+function canExpire(order: VerifiedOrderRow): boolean {
+  return order.issuer_did === props.did && order.verified_state === "PENDING";
+}
 
 async function fetchOrders(silent = false): Promise<void> {
   if (!silent) {
@@ -179,6 +230,40 @@ async function fetchOrders(silent = false): Promise<void> {
 async function handleCreated(): Promise<void> {
   showComposer.value = false;
   await fetchOrders(true);
+}
+
+async function handleCancel(orderId: string): Promise<void> {
+  if (!onChainReady.isReady.value) {
+    error.value = onChainReady.readinessMessage.value;
+    return;
+  }
+
+  actionLoading.value = orderId;
+  try {
+    await cancelOrder(orderId, props.did);
+    await fetchOrders(true);
+  } catch (cancelError) {
+    error.value = cancelError instanceof Error ? cancelError.message : "Cancellation failed";
+  } finally {
+    actionLoading.value = null;
+  }
+}
+
+async function handleExpire(orderId: string): Promise<void> {
+  if (!onChainReady.isReady.value) {
+    error.value = onChainReady.readinessMessage.value;
+    return;
+  }
+
+  actionLoading.value = orderId;
+  try {
+    await expireOrder(orderId, props.did);
+    await fetchOrders(true);
+  } catch (expireError) {
+    error.value = expireError instanceof Error ? expireError.message : "Expiry failed";
+  } finally {
+    actionLoading.value = null;
+  }
 }
 
 onMounted(() => {

@@ -155,32 +155,59 @@ describe("canActorPerformTransition", () => {
       expect(result).toEqual({ allowed: false, reason: expect.any(String) });
     });
 
-    it("denies if state is not PENDING", () => {
+    // REQ-013 fix: BOOKED→CANCELLED is a valid lifecycle transition (WP Section IV).
+    // The issuing SHIPPER may cancel from either PENDING or BOOKED state.
+    it("allows SHIPPER to cancel a BOOKED load (issuer match)", () => {
       const actor: Actor = { role: "SHIPPER", did: "did:iota:shipper1" };
       const token = makeToken({
         state: "BOOKED",
         issuer_did: "did:iota:shipper1",
+        carrier_did: "did:iota:carrier1",
       });
       const result = canActorPerformTransition(actor, token, "CANCELLED");
-      expect(result).toEqual({
-        allowed: false,
-        reason: "Can only cancel loads in PENDING state",
+      expect(result).toEqual({ allowed: true });
+    });
+
+    it("denies SHIPPER cancelling BOOKED load they did not issue", () => {
+      const actor: Actor = { role: "SHIPPER", did: "did:iota:shipper2" };
+      const token = makeToken({
+        state: "BOOKED",
+        issuer_did: "did:iota:shipper1",
+        carrier_did: "did:iota:carrier1",
       });
+      const result = canActorPerformTransition(actor, token, "CANCELLED");
+      expect(result).toEqual({ allowed: false, reason: expect.any(String) });
     });
   });
 
-  describe("unsupported transition", () => {
-    it("returns reason containing 'Unsupported' for EXPIRED", () => {
+  // REQ-013 fix: PENDING→EXPIRED is a valid lifecycle transition (WP Section IV).
+  // Temporarily authorized to the issuing SHIPPER until an automated scheduler exists.
+  describe("EXPIRED transition", () => {
+    it("allows SHIPPER (issuer) to expire a PENDING load", () => {
       const actor: Actor = { role: "SHIPPER", did: "did:iota:shipper1" };
       const token = makeToken({
         state: "PENDING",
         issuer_did: "did:iota:shipper1",
       });
       const result = canActorPerformTransition(actor, token, "EXPIRED");
-      expect(result).toEqual({
-        allowed: false,
-        reason: expect.stringContaining("Unsupported"),
+      expect(result).toEqual({ allowed: true });
+    });
+
+    it("denies SHIPPER who is not the issuer", () => {
+      const actor: Actor = { role: "SHIPPER", did: "did:iota:shipper2" };
+      const token = makeToken({
+        state: "PENDING",
+        issuer_did: "did:iota:shipper1",
       });
+      const result = canActorPerformTransition(actor, token, "EXPIRED");
+      expect(result).toEqual({ allowed: false, reason: expect.any(String) });
+    });
+
+    it("denies CARRIER from triggering expiry", () => {
+      const actor: Actor = { role: "CARRIER", did: "did:iota:carrier1" };
+      const token = makeToken({ state: "PENDING", issuer_did: "did:iota:shipper1" });
+      const result = canActorPerformTransition(actor, token, "EXPIRED");
+      expect(result).toEqual({ allowed: false, reason: expect.any(String) });
     });
   });
 });

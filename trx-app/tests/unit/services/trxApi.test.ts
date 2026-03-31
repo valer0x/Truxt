@@ -51,6 +51,8 @@ import {
   createOrder,
   bookOrder,
   markOrderDone,
+  cancelOrder,
+  expireOrder,
   listOrders,
   TrxApiError,
 } from "@/services/trx/trxApi";
@@ -313,9 +315,8 @@ describe("createOrder", () => {
     await createOrder(shipper.did, payload);
 
     expect(mockAdapter.anchorCreate).toHaveBeenCalledOnce();
-    const [orderId, fingerprint, issuerDid, orderPayload] = vi.mocked(
-      mockAdapter.anchorCreate
-    ).mock.calls[0];
+    const callArgs = vi.mocked(mockAdapter.anchorCreate).mock.calls[0];
+    const [orderId, fingerprint, issuerDid, orderPayload] = callArgs;
     expect(orderId).toBeTruthy();
     expect(fingerprint).toBeTruthy();
     expect(issuerDid).toBe(shipper.did);
@@ -461,6 +462,138 @@ describe("markOrderDone", () => {
     expect(result.token.state).toBe("DONE");
     expect(result.token.order_id).toBe(orderId);
     expect(result.proof).toBe(doneProof);
+  });
+});
+
+describe("cancelOrder", () => {
+  const orderId = "ORD-cancel-001";
+  const shipperDid = "did:iota:test_shipper1";
+  const carrierDid = "did:iota:test_carrier1";
+
+  it("throws 503 when not ready", async () => {
+    vi.mocked(getOnChainWriteReadiness).mockReturnValue({
+      ready: false,
+      code: "MISSING_PACKAGE",
+      message: "Not ready",
+    });
+    seedShipper();
+    await expect(cancelOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("throws 401 when actor DID not found", async () => {
+    await expect(cancelOrder(orderId, "did:iota:nobody")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("throws 404 when order not found", async () => {
+    seedShipper();
+    vi.mocked(getOrderById).mockResolvedValue(null);
+    await expect(cancelOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("throws 409 when network verification fails", async () => {
+    seedShipper();
+    const token = makePendingToken(orderId, shipperDid);
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("PENDING", false));
+    await expect(cancelOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("allows SHIPPER to cancel a PENDING load", async () => {
+    seedShipper();
+    const token = makePendingToken(orderId, shipperDid);
+    const cancelledProof = mockProof(orderId, "CANCELLED");
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("PENDING", true));
+    vi.mocked(mockAdapter.anchorUpdate).mockResolvedValue(cancelledProof);
+
+    const result = await cancelOrder(orderId, shipperDid);
+
+    expect(result.token.state).toBe("CANCELLED");
+    expect(result.proof).toBe(cancelledProof);
+  });
+
+  // REQ-013: BOOKED→CANCELLED is a valid lifecycle transition.
+  it("allows SHIPPER to cancel a BOOKED load", async () => {
+    seedShipper();
+    const token = makeBookedToken(orderId, shipperDid, carrierDid);
+    const cancelledProof = mockProof(orderId, "CANCELLED");
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("BOOKED", true, carrierDid));
+    vi.mocked(mockAdapter.anchorUpdate).mockResolvedValue(cancelledProof);
+
+    const result = await cancelOrder(orderId, shipperDid);
+
+    expect(result.token.state).toBe("CANCELLED");
+    expect(result.proof).toBe(cancelledProof);
+  });
+
+  it("throws 403 when CARRIER tries to cancel", async () => {
+    seedCarrier();
+    const token = makePendingToken(orderId, shipperDid);
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("PENDING", true));
+
+    await expect(cancelOrder(orderId, carrierDid)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("expireOrder", () => {
+  const orderId = "ORD-expire-001";
+  const shipperDid = "did:iota:test_shipper1";
+
+  it("throws 503 when not ready", async () => {
+    vi.mocked(getOnChainWriteReadiness).mockReturnValue({
+      ready: false,
+      code: "MISSING_PACKAGE",
+      message: "Not ready",
+    });
+    seedShipper();
+    await expect(expireOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("throws 401 when actor DID not found", async () => {
+    await expect(expireOrder(orderId, "did:iota:nobody")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("throws 404 when order not found", async () => {
+    seedShipper();
+    vi.mocked(getOrderById).mockResolvedValue(null);
+    await expect(expireOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("throws 409 when network state is not PENDING", async () => {
+    seedShipper();
+    const token = makeBookedToken(orderId, shipperDid, "did:iota:test_carrier1");
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(
+      mockVerification("BOOKED", true, "did:iota:test_carrier1")
+    );
+    await expect(expireOrder(orderId, shipperDid)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("allows SHIPPER to expire a PENDING load", async () => {
+    seedShipper();
+    const token = makePendingToken(orderId, shipperDid);
+    const expiredProof = mockProof(orderId, "EXPIRED");
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("PENDING", true));
+    vi.mocked(mockAdapter.anchorUpdate).mockResolvedValue(expiredProof);
+
+    const result = await expireOrder(orderId, shipperDid);
+
+    expect(result.token.state).toBe("EXPIRED");
+    expect(result.proof).toBe(expiredProof);
+  });
+
+  it("throws 403 when CARRIER tries to expire", async () => {
+    seedCarrier();
+    const token = makePendingToken(orderId, shipperDid);
+    vi.mocked(getOrderById).mockResolvedValue(token);
+    vi.mocked(mockAdapter.verify).mockResolvedValue(mockVerification("PENDING", true));
+
+    await expect(expireOrder(orderId, "did:iota:test_carrier1")).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });
 

@@ -267,3 +267,86 @@ export async function markOrderDone(orderId: string, actorDid: string): Promise<
 
   return { token: updated, proof };
 }
+
+/**
+ * Cancel a load. Valid from PENDING or BOOKED state (WP Section IV).
+ * Only the issuing SHIPPER may cancel.
+ */
+export async function cancelOrder(orderId: string, actorDid: string): Promise<{ token: OrderToken; proof: NetworkProof }> {
+  enforceOnChainWriteReady();
+
+  const actor = resolveActor(actorDid);
+  const token = await getOrderById(orderId);
+  enforce(token, 404, "Order not found");
+
+  const network = getNetworkAdapter();
+  const verification = await network.verify(orderId);
+  enforce(verification.verified, 409, "Order cannot be verified on network. Action blocked.");
+
+  const authCheck = canActorPerformTransition({ role: actor.role, did: actor.did }, token, "CANCELLED");
+  if (!authCheck.allowed) {
+    throw new TrxApiError(403, authCheck.reason);
+  }
+
+  const proof = await network.anchorUpdate(
+    orderId,
+    "CANCELLED",
+    token.issuer_did,
+    token.carrier_did,
+    token.last_network_proof
+  );
+
+  const updated: OrderToken = {
+    ...token,
+    state: "CANCELLED",
+    updated_at: new Date().toISOString(),
+    last_network_proof: proof.tx_id,
+    last_verified_at: proof.timestamp,
+  };
+
+  return { token: updated, proof };
+}
+
+/**
+ * Expire a PENDING load. Valid from PENDING state only (WP Section IV).
+ * Only the issuing SHIPPER may trigger expiry (temporary rule — see stateMachine.ts).
+ */
+export async function expireOrder(orderId: string, actorDid: string): Promise<{ token: OrderToken; proof: NetworkProof }> {
+  enforceOnChainWriteReady();
+
+  const actor = resolveActor(actorDid);
+  const token = await getOrderById(orderId);
+  enforce(token, 404, "Order not found");
+
+  const network = getNetworkAdapter();
+  const verification = await network.verify(orderId);
+  enforce(verification.verified, 409, "Order cannot be verified on network. Action blocked.");
+  enforce(
+    verification.state === "PENDING",
+    409,
+    `Order is ${verification.state} on network, expected PENDING for expiry`
+  );
+
+  const authCheck = canActorPerformTransition({ role: actor.role, did: actor.did }, token, "EXPIRED");
+  if (!authCheck.allowed) {
+    throw new TrxApiError(403, authCheck.reason);
+  }
+
+  const proof = await network.anchorUpdate(
+    orderId,
+    "EXPIRED",
+    token.issuer_did,
+    token.carrier_did,
+    token.last_network_proof
+  );
+
+  const updated: OrderToken = {
+    ...token,
+    state: "EXPIRED",
+    updated_at: new Date().toISOString(),
+    last_network_proof: proof.tx_id,
+    last_verified_at: proof.timestamp,
+  };
+
+  return { token: updated, proof };
+}

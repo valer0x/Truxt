@@ -28,6 +28,16 @@ export interface OrderPayload {
   equipment_requirements_hash: string;
 }
 
+export interface OnChainLoadAnchor {
+  order_id: string;
+  fingerprint: string;
+  state: OrderState;
+  issuer_did: string;
+  carrier_did: string | null;
+  created_at_ms: number;
+  updated_at_ms: number;
+}
+
 export interface OrderToken {
   order_id: string;
   issuer_did: string;
