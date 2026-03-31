@@ -81,3 +81,8 @@ At bootstrap, legacy `trx_database_v1` load/ledger/mock data is wiped (profiles 
 4. As shipper, create load and verify proof uses real tx digest/checkpoint (no `mock_tx`).
 5. As carrier, verify load appears in `Available` and updates after `Book`/`Done` without manual refresh.
 6. Run `npm run lint` and `npm run build`.
+
+
+white paper
+https://docs.google.com/document/d/1fWiRlYLSiOYv7yqSPGz5mIXRbLHsl5p23qrxdCY3W34/edit?tab=t.0#heading=h.hcfsn8dd2dw4
+
